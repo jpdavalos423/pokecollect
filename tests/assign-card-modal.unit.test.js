@@ -1,102 +1,104 @@
-/* global jest */
-
-
 /**
  * @jest-environment jsdom
  */
 
-describe('assign-card-modal', () => {
-  let showAssignCardModal;
-  beforeAll(async () => {
-    // Import the function (adjust the path as needed)
-    ({ showAssignCardModal } = await import('../source/assets/scripts/assign-card-modal.js'));
+import { beforeEach, describe, expect, jest, test } from "@jest/globals";
+import { showAssignCardModal } from "../source/assets/scripts/assign-card-modal.js";
+
+function jsonResponse(payload, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: {
+      get: () => "application/json",
+    },
+    json: async () => payload,
+  };
+}
+
+function flush() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+describe("assign-card-modal", () => {
+  beforeEach(() => {
+    window.POKECOLLECT_API_BASE = "http://localhost:3001/api/v1";
+    document.body.innerHTML = "";
+    global.fetch = jest.fn();
   });
 
-  afterEach(() => {
-    // Clean up any modals
-    document.getElementById('global-assign-card-modal')?.remove();
+  test("returns early for invalid page/slot input", async () => {
+    await showAssignCardModal(0, 0);
+    await showAssignCardModal(1, 9);
+    expect(document.getElementById("assign-card-modal")).toBeNull();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  test("renders unassigned cards and assigns selected card", async () => {
+    global.fetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          items: [{ userCardId: "uc-1", name: "Pikachu", imageUrl: "https://cdn.example/pika.png" }],
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
 
+    const collectionChangedSpy = jest.fn();
+    document.addEventListener("collection:changed", collectionChangedSpy);
 
+    await showAssignCardModal(1, 2);
 
-  test('should render all cards from collection and allow selection', () => {
-    // Prepare mock collection
-    const mockCollection = [
-      { name: 'Pikachu', imgUrl: 'pikachu.png', id: 1 },
-      { name: 'Bulbasaur', imgUrl: 'bulbasaur.png', id: 2 }
-    ];
-    localStorage.setItem('pokemonCollection', JSON.stringify(mockCollection));
-    showAssignCardModal(0, 0);
-    const modal = document.getElementById('assign-card-modal');
-    const cards = modal.querySelectorAll('.card');
-    expect(cards.length).toBe(2);
-    // Simulate selecting the second card
-    cards[1].click();
-    expect(cards[1].classList.contains('selected')).toBe(true);
-    // Confirm button should be visible
-    const confirmBtn = modal.querySelector('#confirmAssignCardBtn');
-    expect(confirmBtn.style.display).toBe('block');
-  });
+    const modal = document.getElementById("assign-card-modal");
+    const cards = modal.querySelectorAll(".search-result-card");
+    const confirmBtn = modal.querySelector("#confirmAssignCardBtn");
 
-  test('should assign card to slot and update localStorage', () => {
-    const mockCollection = [
-      { name: 'Pikachu', imgUrl: 'pikachu.png', id: 1 },
-      { name: 'Bulbasaur', imgUrl: 'bulbasaur.png', id: 2 }
-    ];
-    localStorage.setItem('pokemonCollection', JSON.stringify(mockCollection));
-    showAssignCardModal(1, 2);
-    const modal = document.getElementById('assign-card-modal');
-    const cards = modal.querySelectorAll('.card');
-    // Select first card
+    expect(cards.length).toBe(1);
     cards[0].click();
-    // Click confirm
-    const confirmBtn = modal.querySelector('#confirmAssignCardBtn');
+    expect(confirmBtn.style.display).toBe("inline-flex");
+
     confirmBtn.click();
-    // Modal should be removed
-    expect(document.getElementById('assign-card-modal')).toBeNull();
-    // Card should have page and slot assigned
-    const updated = JSON.parse(localStorage.getItem('pokemonCollection'));
-    expect(updated[0].page).toBe(1);
-    expect(updated[0].slot).toBe(2);
+    await flush();
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(String(global.fetch.mock.calls[0][0])).toContain("/collection");
+    expect(String(global.fetch.mock.calls[1][0])).toContain("/binder/slots");
+    expect(global.fetch.mock.calls[1][1].method).toBe("PUT");
+    expect(collectionChangedSpy).toHaveBeenCalledTimes(1);
+    expect(document.getElementById("assign-card-modal")).toBeNull();
   });
 
-  test('should close modal on background click', () => {
-    showAssignCardModal(0, 0);
-    const modal = document.getElementById('assign-card-modal');
-    // Simulate background click
-    modal.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(document.getElementById('assign-card-modal')).toBeNull();
+  test("shows empty-state message when collection has no unassigned cards", async () => {
+    global.fetch.mockResolvedValueOnce(jsonResponse({ items: [] }));
+
+    await showAssignCardModal(2, 4);
+
+    const modal = document.getElementById("assign-card-modal");
+    expect(modal).not.toBeNull();
+    expect(modal.textContent).toContain("No unassigned cards available");
   });
 
-  test('should scale cardDiv on hover and reset on mouseout', () => {
-    const mockCollection = [
-      { name: 'Pikachu', imgUrl: 'pikachu.png', id: 1 }
-    ];
-    localStorage.setItem('pokemonCollection', JSON.stringify(mockCollection));
-    showAssignCardModal(0, 0);
-    const modal = document.getElementById('assign-card-modal');
-    const cardDiv = modal.querySelector('.card');
-    // Simulate mouseover
-    cardDiv.dispatchEvent(new Event('mouseover'));
-    expect(cardDiv.style.transform).toBe('scale(1.05)');
-    // Simulate mouseout
-    cardDiv.dispatchEvent(new Event('mouseout'));
-    expect(cardDiv.style.transform).toBe('scale(1)');
-  });
+  test("keeps modal open and shows API error when assignment fails", async () => {
+    global.fetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          items: [{ userCardId: "uc-2", name: "Charmander", imageUrl: "https://cdn.example/charmander.png" }],
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({ error: "Slot assignment failed" }, 500));
 
-  test('should set fallback image on error', () => {
-    const mockCollection = [
-      { name: 'Pikachu', imgUrl: 'pikachu.png', id: 1 }
-    ];
-    localStorage.setItem('pokemonCollection', JSON.stringify(mockCollection));
-    showAssignCardModal(0, 0);
-    const modal = document.getElementById('assign-card-modal');
-    const img = modal.querySelector('img');
-    // Simulate error event
-    img.onerror();
-    expect(img.src).toContain('assets/images/card-back.png');
-  });
+    await showAssignCardModal(3, 0);
 
-  // Add more tests as needed for card selection and confirmation
+    const modal = document.getElementById("assign-card-modal");
+    const cards = modal.querySelectorAll(".search-result-card");
+    const confirmBtn = modal.querySelector("#confirmAssignCardBtn");
+
+    cards[0].click();
+    confirmBtn.click();
+    await flush();
+
+    expect(document.getElementById("assign-card-modal")).not.toBeNull();
+    expect(modal.textContent).toContain("Error: Slot assignment failed");
+    expect(confirmBtn.disabled).toBe(false);
+    expect(confirmBtn.textContent).toBe("Assign to Slot");
+  });
 });

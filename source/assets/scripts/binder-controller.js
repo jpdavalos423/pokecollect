@@ -1,72 +1,73 @@
-// binder-controller.js
-
 import "../../components/binder/pokemon-binder.js";
+import { fetchBinder } from "./binder-store.js";
+import { getCurrentUser } from "./auth-store.js";
 
-/**
- * Reads the flat collection array from localStorage (key: "pokemonCollection"),
- * parses it, and hands it to <pokemon-binder> to re-render.
- *
- * If the stored data is not a valid array or fails to parse,
- * it defaults to an empty array.
- */
-function updateBinder() {
-  const raw = localStorage.getItem("pokemonCollection");
-  let collection = [];
+function getBinderElement() {
+  return document.querySelector("pokemon-binder");
+}
+
+function mapBinderItemsToPages(items) {
+  return items.map((item) => ({
+    userCardId: item.userCardId,
+    page: item.page,
+    slot: item.slot,
+    imgUrl: item.card?.imageUrl,
+    name: item.card?.name,
+    cardId: item.card?.cardId,
+    rarity: item.card?.rarity,
+    setName: item.card?.setName,
+    number: item.card?.number,
+    marketPrice: item.card?.marketPrice,
+  }));
+}
+
+export async function refreshBinder() {
+  const binder = getBinderElement();
+  if (!binder) return;
+
+  if (!getCurrentUser()) {
+    binder.setPages([]);
+    return;
+  }
+
   try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      collection = parsed;
-    }
-  } catch {
-    collection = [];
-  }
-
-  const binder = document.querySelector("pokemon-binder");
-  if (binder) {
-    binder.setPages(collection);
+    const response = await fetchBinder({ page: 1, pageSize: 500 });
+    binder.setPages(mapBinderItemsToPages(response.items || []));
+  } catch (err) {
+    console.error("Failed to refresh binder", err);
+    binder.setPages([]);
   }
 }
 
-/**
- * Instructs the <pokemon-binder> component to flip forward by two pages.
- * Typically used for navigating to the next set of card pages.
- */
 function turnPageRight() {
-  const binder = document.querySelector("pokemon-binder");
-  if (binder) {
-    binder.flipForward();
-  }
+  getBinderElement()?.flipForward();
 }
 
-/**
- * Instructs the <pokemon-binder> component to flip backward by two pages.
- * Typically used for navigating to the previous set of card pages.
- */
 function turnPageLeft() {
-  const binder = document.querySelector("pokemon-binder");
-  if (binder) {
-    binder.flipBackward();
-  }
+  getBinderElement()?.flipBackward();
+}
+
+function jumpToPage() {
+  const input = document.getElementById("binderPageJump");
+  const page = Number(input?.value);
+  if (!Number.isInteger(page) || page < 1) return;
+  getBinderElement()?.jumpToPage(page);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  updateBinder();
+  document.getElementById("turnPageRight")?.addEventListener("click", turnPageRight);
+  document.getElementById("turnPageLeft")?.addEventListener("click", turnPageLeft);
+  document.getElementById("jumpToPageBtn")?.addEventListener("click", jumpToPage);
 
-  document
-    .getElementById("turnPageRight")
-    ?.addEventListener("click", turnPageRight);
+  document.getElementById("binderPageJump")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") jumpToPage();
+  });
 
-  document
-    .getElementById("turnPageLeft")
-    ?.addEventListener("click", turnPageLeft);
+  document.addEventListener("auth:changed", () => {
+    refreshBinder();
+  });
+
+  document.addEventListener("collection:changed", () => {
+    refreshBinder();
+  });
 });
-
-/**
- * Handles the action after a card has been added to the collection.
- * This re-renders the binder view with the updated card data.
- *
- * @param {string} imgURL - The image URL of the card that was added. (Not currently used.)
- */
-export function handleAddCard(imgURL) {
-  updateBinder();
-}

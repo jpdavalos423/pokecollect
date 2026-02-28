@@ -1,34 +1,50 @@
 /**
- * Given a Poké TCG API card object, computes and formats the market‐price range
- * across all available pricing variants, or returns a fallback if none exist.
+ * Given a card object, computes and formats a market-price range
+ * across available pricing variants, or returns a fallback if none exist.
  *
- * @param {Object} fullCard
- *   The full card data as returned by the Poké TCG API.
- * @param {Object} [fullCard.tcgplayer]
- *   Optional TCGPlayer block containing pricing information.
- * @param {Object.<string, {market:number}>} [fullCard.tcgplayer.prices]
- *   An object whose keys are variant names (e.g. "normal", "reverseHolofoil")
- *   and whose values contain a `market` number.
+ * Supports:
+ * - Pokémon TCG API shape (`tcgplayer.prices`)
+ * - TCGdex shape (`pricing`)
+ *
+ * @param {Object|null|undefined} fullCard
  * @returns {string}
- *   A formatted price string:
- *     - `"$X.XX"` if all variants share the same market price,  
- *     - `"$X.XX – $Y.YY"` if there’s a range,  
- *     - `"Price unavailable"` if no data is present.
  */
 export function formatMarketPrice(fullCard) {
-  const prices = fullCard?.tcgplayer?.prices;
-  if (!prices) return 'Price unavailable';
+  const values = [];
 
-  const markets = Object.values(prices)
-    .map(p => p.market)
-    .filter(p => typeof p === 'number');
-
-  if (markets.length === 0) {
-    return 'Price unavailable';
+  // Legacy Pokémon TCG API shape
+  const pokemonPrices = fullCard?.tcgplayer?.prices;
+  if (pokemonPrices) {
+    Object.values(pokemonPrices).forEach((entry) => {
+      if (Number.isFinite(entry?.market)) {
+        values.push(entry.market);
+      }
+    });
   }
 
-  const min = Math.min(...markets);
-  const max = Math.max(...markets);
+  // TCGdex pricing shape (nested provider objects with numeric values)
+  const walk = (value) => {
+    if (value === null || value === undefined) return;
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      values.push(value);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(walk);
+      return;
+    }
+    if (typeof value === "object") {
+      Object.values(value).forEach(walk);
+    }
+  };
+  walk(fullCard?.pricing);
+
+  if (values.length === 0) {
+    return "Price unavailable";
+  }
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
 
   return min === max
     ? `$${min.toFixed(2)}`

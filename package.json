@@ -11,6 +11,7 @@
     "docs": "jsdoc -c jsdoc.json",
     "test:unit": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config=jest.unit.config.js",
     "start:dev": "live-server source --port=5500 --no-browser",
+    "start:api": "node server/app.js",
     "jest": "jest",
     "test:e2e": "start-server-and-test start:dev http://localhost:5500 \"node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config=jest.e2e.config.js --verbose --silent false\""
   },
@@ -39,7 +40,11 @@
     "start-server-and-test": "^2.0.12"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
     "dotenv": "^16.5.0",
-    "puppeteer": "^19.11.1"
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.3"
   }
 }

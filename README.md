@@ -1,44 +1,36 @@
-# PokéCollect - A Pokémon Collector App
+# PokéCollect
 
-<!-- TODO:
-- read here: https://github.com/matiassingers/awesome-readme for more good README.md files
-- make a gif for website usage (would be cool)
-- link website when its all done :)
--->
+PokéCollect is a web app to search, collect, filter, and organize Pokémon cards in a binder.
 
-https://cse110-sp25-group20.github.io/cse110-sp25-group20/
+Current architecture:
+- Frontend: HTML/CSS/JS (ES modules + web components)
+- Backend: Node.js + Express API
+- Database: Postgres
+- Auth: JWT bearer tokens
+- Card Data Provider: TCGdex (`https://tcgdex.dev/`)
 
-A modern web app to browse, collect, and manage your Pokémon cards from all generations. Built with HTML + CSS + JS, and powered by Pokemon TCG API.
+## Setup
+1. Install dependencies:
+   - `npm install`
+2. Create env file:
+   - `cp .env.example .env`
+3. Update `.env`:
+   - `DATABASE_URL`
+   - `JWT_SECRET`
+   - Optional: `TCGDEX_API_BASE_URL`, `POKEMON_CACHE_TTL_MS`
 
-![App Screenshot](admin/misc/demo.gif)
+## Run
+1. Start API server:
+   - `npm run start:api`
+2. Start frontend dev server:
+   - `npm run start:dev`
+3. Open app:
+   - [http://localhost:5500](http://localhost:5500)
 
----
+By default, frontend calls backend at `http://localhost:3001/api/v1`.
 
-## 📦 Features
-
-- 🔍 **Search by name and retrieve high quality cards**
-- 📋 **Track your Pokémon collection digitally**
-- 📚 **Keep note of favorite cards in a binder**
-
----
-
-## 📷 Final Videos
-
-[Public Video](https://www.youtube.com/watch?v=HZ4HFHGtKxw)
-
-[Private Video](https://www.youtube.com/watch?v=Bt0JmYFLUrU)
-
----
-
-## ©️ Credits
-
-<img src="admin/branding/darklogo.png" alt="drawing" width="50"/>  
-  
-Built by **Team 20's Vibe Coders**  
-*We do not debug, we vibe check*  
-
-
-
-Thank you to [Alain](https://github.com/AlainZhangStudent), [Danielle](https://github.com/danieiiie), [Elena](https://github.com/Elena-ee), [Erictuan](https://github.com/erictuannong), [Ethan](https://github.com/ethankook), [Ghaida](https://github.com/GhaidaALruwais), [Jason](https://github.com/jnaidu360), [Jonathan](https://github.com/rec4l), [JP](https://github.com/jpdavalos423), and [Kevin](https://github.com/kecohen575) for the love and care you put into this project.  
-
-Thank you to [TextStudio](https://www.textstudio.com/) for helping us create our logo.
+## Notes
+- Offline mode has been removed from runtime flows.
+- Legacy `localStorage` is no longer the primary data source.
+- Collection and binder writes now go through backend APIs.
+- Card image fallback is a generic Pokémon card back: `assets/images/card-back.png`.

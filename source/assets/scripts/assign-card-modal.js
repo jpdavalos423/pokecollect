@@ -1,168 +1,89 @@
-// assign-card-modal.js
+import { assignBinderSlot } from "./binder-store.js";
+import { fetchCollection } from "./collection-store.js";
 
-/**
- * Displays a modal popup listing existing cards from localStorage for assignment to a binder slot.
- * Allows the user to pick a card from the collection and assign it to a specific page and slot in the binder.
- * Updates localStorage and re-renders the binder.
- * 
- * @param {number} pageIndex - The index of the binder page to assign the card to.
- * @param {number} slotIndex - The index of the slot on the page where the card should go.
- */
-export function showAssignCardModal(pageIndex, slotIndex) {
-  // Remove any existing modal
-  const oldModal = document.getElementById('assign-card-modal');
+export async function showAssignCardModal(pageIndex, slotIndex) {
+  if (!Number.isInteger(pageIndex) || pageIndex < 1) return;
+  if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex > 8) return;
+
+  const oldModal = document.getElementById("assign-card-modal");
   if (oldModal) oldModal.remove();
 
-  // Create modal container
-  const modal = document.createElement('div');
-  modal.className = 'card-modal';
-  modal.id = 'assign-card-modal';
+  const modal = document.createElement("div");
+  modal.className = "card-modal";
+  modal.id = "assign-card-modal";
   modal.innerHTML = `
-    <style>
-      .card.selected {
-        border: 2px solid #2a75bb;
-        box-shadow: 0 0 10px rgba(42, 117, 187, 0.6);
-      }
-      .modal-content {
-        overflow: hidden !important;
-        box-sizing: border-box;
-        max-height: 98vh !important;
-      }
-      .modal-name {
-        margin-top: 16px;
-      }
-    </style>
-    <section class="modal-content" role="dialog" aria-modal="true">
-      <article class="modal-info" style="flex: 1;">
-        <h2 class="modal-name">Assign Card to Slot</h2>
-        <div id="assignCardResult" style="
-          margin-top: 16px; 
-          display: grid; 
-          grid-template-columns: repeat(3, 1fr); 
-          gap: 50px;
-          max-height:60vh;
-          overflow-y: auto;
-          padding: 10px;
-        "></div>
-        <button id="confirmAssignCardBtn" style="display: none; margin-top: 10px; padding: 8px 12px; background: #ffcb05; color: black; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">Add to Slot</button>
+    <section class="modal-content" role="dialog" aria-modal="true" aria-label="Assign card to binder slot">
+      <article class="modal-info" style="flex:1; min-width: min(680px, 90vw);">
+        <h2 class="modal-name">Assign Card to Page ${pageIndex}, Slot ${slotIndex + 1}</h2>
+        <div id="assignCardResult" class="search-results-grid"></div>
+        <button id="confirmAssignCardBtn" type="button" style="display:none; margin-top:10px;">Assign to Slot</button>
       </article>
     </section>
   `;
 
   document.body.appendChild(modal);
 
-  /** Closes modal if background area is clicked */
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) modal.remove();
-  });
+  const resultBox = modal.querySelector("#assignCardResult");
+  const confirmBtn = modal.querySelector("#confirmAssignCardBtn");
 
-  /** @type {HTMLElement} */
-  const resultBox = modal.querySelector('#assignCardResult');
-
-  /** @type {HTMLButtonElement} */
-  const confirmBtn = modal.querySelector('#confirmAssignCardBtn');
-
-  /** @type {Object|null} */
   let selectedCard = null;
 
-  /** @type {number|null} */
-  let selectedIndex = null;
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) modal.remove();
+  });
 
-  /** Load the current card collection from localStorage */
-  const COLLECTION_STORAGE_KEY = 'pokemonCollection';
-  const collection = JSON.parse(localStorage.getItem(COLLECTION_STORAGE_KEY)) || [];
+  const response = await fetchCollection({
+    assigned: false,
+    page: 1,
+    pageSize: 500,
+    sortBy: "addedAt",
+    sortDir: "desc",
+  });
 
-  /**
-   * Renders each card from the collection as a clickable option
-   */
-  collection.forEach((card, idx) => {
-    const cardDiv = document.createElement('div');
-    cardDiv.className = 'card';
-    Object.assign(cardDiv.style, {
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '10px',
-      boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
-      cursor: 'pointer',
-      transition: 'transform 0.2s ease, border 0.2s ease',
-      maxWidth: '90px',
-      margin: 'auto',
-    });
+  if (!response.items.length) {
+    resultBox.innerHTML = "<p>No unassigned cards available. Add cards first or unassign one from binder.</p>";
+    return;
+  }
 
-    // Hover effect
-    cardDiv.addEventListener('mouseover', () => {
-      cardDiv.style.transform = 'scale(1.05)';
-    });
-    cardDiv.addEventListener('mouseout', () => {
-      cardDiv.style.transform = 'scale(1)';
-    });
+  response.items.forEach((card) => {
+    const cardDiv = document.createElement("div");
+    cardDiv.className = "search-result-card";
 
-    // Selection logic
-    cardDiv.addEventListener('click', () => {
-      resultBox.querySelectorAll('.card.selected').forEach(el => el.classList.remove('selected'));
-      cardDiv.classList.add('selected');
+    const img = document.createElement("img");
+    img.className = "search-result-img";
+    img.src = card.imageUrl;
+    img.alt = card.name || "Pokemon card";
+    img.loading = "lazy";
+
+    const label = document.createElement("div");
+    label.className = "card-name";
+    label.textContent = card.name || "Unknown";
+
+    cardDiv.append(img, label);
+    cardDiv.addEventListener("click", () => {
+      resultBox.querySelectorAll(".selected").forEach((el) => el.classList.remove("selected"));
+      cardDiv.classList.add("selected");
       selectedCard = card;
-      selectedIndex = idx;
-      confirmBtn.style.display = 'block';
+      confirmBtn.style.display = "inline-flex";
     });
 
-    // Card image
-    const img = document.createElement('img');
-    img.src = card.imgUrl || card.images?.small;
-    img.alt = card.name;
-    img.onerror = () => {
-      img.onerror = null;
-      img.src = 'assets/images/card-back.png';
-    };
-    Object.assign(img.style, {
-      width: '100%',
-      borderRadius: '6px',
-    });
-
-    // Card name
-    const nameEl = document.createElement('div');
-    nameEl.className = 'card-name';
-    nameEl.textContent = card.name;
-    Object.assign(nameEl.style, {
-      marginTop: '8px',
-      fontWeight: 'bold',
-      fontSize: '12px',
-      textAlign: 'center',
-      wordBreak: 'break-word',
-    });
-
-    cardDiv.appendChild(img);
-    cardDiv.appendChild(nameEl);
     resultBox.appendChild(cardDiv);
   });
 
-  /**
-   * Handles confirming the card assignment to the selected page and slot.
-   * Updates the card object with page and slot, updates localStorage,
-   * and triggers re-render of the binder.
-   */
-  confirmBtn.addEventListener('click', () => {
-    if (selectedCard !== null && selectedIndex !== null) {
-      // Tag card with its new position
-      collection[selectedIndex] = {
-        ...collection[selectedIndex],
-        page: pageIndex,
-        slot: slotIndex,
-      };
+  confirmBtn.addEventListener("click", async () => {
+    if (!selectedCard?.userCardId) return;
 
-      // Save changes
-      localStorage.setItem(COLLECTION_STORAGE_KEY, JSON.stringify(collection));
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "Assigning...";
 
-      // Refresh binder view
-      const binder = document.querySelector("pokemon-binder");
-      if (binder) {
-        binder.setPages(collection);
-      }
-
-      // Close modal
-      document.getElementById('assign-card-modal')?.remove();
+    try {
+      await assignBinderSlot(selectedCard.userCardId, pageIndex, slotIndex);
+      document.dispatchEvent(new CustomEvent("collection:changed"));
+      modal.remove();
+    } catch (err) {
+      resultBox.innerHTML = `<p>Error: ${err.message}</p>`;
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "Assign to Slot";
     }
   });
 }

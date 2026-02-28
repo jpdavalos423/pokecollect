@@ -1,42 +1,111 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Pokémon Card Binder</title>
-    <link rel="stylesheet" href="style.css?v=20250601" />
-    <link rel="stylesheet" href="darkMode.css?v=20250601" />
-</head>
-<body>
+    <link rel="stylesheet" href="style.css?v=20260228i" />
+    <link rel="stylesheet" href="darkMode.css?v=20260228i" />
+  </head>
+  <body class="auth-locked">
+    <script>
+      try {
+        const savedTheme = localStorage.getItem("pokemonDarkMode");
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const useDarkMode = savedTheme === null ? prefersDark : savedTheme === "true";
+
+        if (useDarkMode) {
+          document.body.classList.add("dark-mode");
+        }
+      } catch {
+        // Ignore storage/theme initialization failures.
+      }
+    </script>
     <header>
-        <img src="./assets/images/logo.png" alt="Pokémon Logo" class="logo" width="600em" draggable="false"/>
-        <nav>
-            <ul class="navbar">
-                <li><a href="#" id="navCollection" class="active">Collection</a></li>
-                <li>
-                  <button id="darkModeToggle" aria-label="Toggle dark mode" title="Toggle dark mode">
-                      <span class="pokeball-toggle"></span>
-                  </button>
-                </li>
-                <li><a href="index.html" id="navBinder">Binder</a></li>
-            </ul>
-        </nav>
+      <div class="brand-block" aria-label="PokeCollect">
+        <h1 class="wordmark">PokeCollect</h1>
+        <p class="tagline">Track, price, and organize your card collection</p>
+      </div>
+
+      <section id="authPanel" class="auth-panel" aria-label="Account">
+        <h2 class="auth-panel-title">Trainer Sign-In</h2>
+        <div class="auth-row">
+          <div class="auth-fields">
+            <input id="authEmail" type="email" placeholder="Email" autocomplete="email" />
+            <input id="authPassword" type="password" placeholder="Password" autocomplete="current-password" />
+          </div>
+          <div class="auth-actions">
+            <button id="authLogin" type="button">Sign In</button>
+            <button id="authRegister" type="button">Register</button>
+            <button id="authLogout" type="button" style="display:none;">Sign Out</button>
+          </div>
+        </div>
+        <p id="authStatus" class="auth-status">Sign in to sync your collection.</p>
+      </section>
     </header>
-    <section class="binder-container">
+
+    <button id="quickSignOut" class="quick-signout hidden" type="button">Sign Out</button>
+
+    <main id="appShell" class="hidden">
+      <nav>
+        <ul class="navbar">
+          <li><a href="#" id="navCollection" class="active">Collection</a></li>
+          <li>
+            <button id="darkModeToggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <span class="pokeball-toggle"></span>
+            </button>
+          </li>
+          <li><a href="#" id="navBinder">Binder</a></li>
+        </ul>
+      </nav>
+
+      <section id="collectionFilters" class="collection-filters">
+        <input id="filterName" type="text" placeholder="Filter by name" />
+        <input id="filterSet" type="text" placeholder="Set" />
+        <input id="filterRarity" type="text" placeholder="Rarity" />
+        <select id="filterAssigned" aria-label="Assigned filter">
+          <option value="">All cards</option>
+          <option value="true">Assigned to binder</option>
+          <option value="false">Unassigned only</option>
+        </select>
+        <select id="filterSortBy" aria-label="Sort by">
+          <option value="addedAt">Sort: Recently added</option>
+          <option value="name">Sort: Name</option>
+          <option value="set">Sort: Set</option>
+          <option value="rarity">Sort: Rarity</option>
+          <option value="price">Sort: Price</option>
+        </select>
+        <select id="filterSortDir" aria-label="Sort direction">
+          <option value="desc">Descending</option>
+          <option value="asc">Ascending</option>
+        </select>
+        <button id="applyFilters" type="button">Apply</button>
+        <button id="clearFilters" type="button">Clear</button>
+        <div id="activeFilterChips" class="filter-chips" aria-live="polite"></div>
+      </section>
+
+      <section class="binder-container">
         <pokemon-binder style="display:none;"></pokemon-binder>
-    </section>
-    <!-- Collection view (shown by default, hidden in binder mode) -->
-    <pokemon-collection></pokemon-collection>
-    <!-- Controls for navigation and Add Card (used for both views) -->
-    <section class="controls">
-        <button id="turnPageLeft">Previous Page</button>
-        <button id="addCard">Add Card</button>
-        <button id="turnPageRight">Next Page</button>
-    </section>
-    
+      </section>
+
+      <pokemon-collection></pokemon-collection>
+
+      <section class="controls">
+        <button id="turnPageLeft" type="button">Previous Page</button>
+        <button id="addCard" type="button">Add Card</button>
+        <button id="turnPageRight" type="button">Next Page</button>
+        <span id="jumpToPageGroup" class="jump-group" style="display:none;">
+          <input id="binderPageJump" type="number" min="1" placeholder="Page #" aria-label="Jump to page" />
+          <button id="jumpToPageBtn" type="button">Go</button>
+        </span>
+      </section>
+    </main>
+
+    <script>
+      window.POKECOLLECT_API_BASE = window.POKECOLLECT_API_BASE || "http://localhost:3001/api/v1";
+    </script>
     <script type="module" src="./assets/scripts/binder-controller.js"></script>
     <script type="module" src="./assets/scripts/collection-controller.js"></script>
     <script type="module" src="./toggleMode.js"></script>
-    <!-- <script type="module" src="./assets/scripts/pokemon-filter.js"></script> -->
-</body>
+  </body>
 </html>

@@ -1,256 +1,365 @@
-import { formatMarketPrice } from '../../assets/scripts/priceHelper.js';
+import { formatMarketPrice } from "../../assets/scripts/priceHelper.js";
+import { getCardById } from "../../api/pokemonAPI.js";
 
-/**
- * @constant {string} COLLECTION_KEY
- * @description The key used in local storage to store and retrieve the cards in the collection.
- */
-const COLLECTION_KEY = 'pokemonCollection';
+const FALLBACK_CARD_IMAGE = "assets/images/card-back.png";
 
-/**
- * @class PokemonCollection
- * @extends HTMLElement
- * @description Custom web component for displaying the collection view
- */
 class PokemonCollection extends HTMLElement {
-  /**
-   * @constructor
-   * @description Initializes the PokemonCollection component and sets up the shadow DOM.
-   */
   constructor() {
     super();
-    this.attachShadow({ mode: 'open' });
+    this.attachShadow({ mode: "open" });
+    this.cards = [];
+    this.loading = false;
+    this.error = "";
+    this.density = "comfy";
+
     this.shadowRoot.innerHTML = `
       <style>
         :host {
-          display: flex;
-          justify-content: center;
-          align-items: flex-start;
-          width: 100%;
-          min-height: 200px;
-          margin-bottom: 20px;
+          display: block;
+          width: min(1200px, 100%);
+          margin: 0 auto;
+          padding: var(--space-4, 16px) 0;
+          box-sizing: border-box;
         }
-        .collection-list {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 18px 28px;
-          width: 100%;
-          justify-content: center;
-          align-items: center;
-          min-height: 220px;
-        }
-        .collection-list.has-cards {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-        }
-        .empty-message {
+
+        .state {
           text-align: center;
-          font-family: 'Luckiest Guy', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-          color: #2a75bb;
-          font-size: 1.5rem;
-          padding: 2rem;
-          text-shadow: 1px 1px 2px #ffcb05;
-          margin: auto;
-          letter-spacing: 1px;
-          max-width: 80%;
+          padding: 1.5rem;
+          color: var(--ink-500, #56728d);
+          border-radius: 14px;
+          font-weight: 600;
+          background: rgba(252, 254, 255, 0.6);
+          border: 1px dashed #b7cde2;
         }
+
+        .state.error {
+          color: #b42318;
+          background: #fee4e2;
+          border: 1px solid #f0b7b3;
+        }
+
+        .toolbar {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+          gap: 12px;
+          flex-wrap: wrap;
+          background: rgba(252, 254, 255, 0.72);
+          border: 1px solid #bdd2e7;
+          border-radius: 18px;
+          box-shadow: 0 8px 18px rgba(15, 42, 70, 0.1);
+          padding: 12px;
+        }
+
+        .count {
+          color: var(--ink-700, #36536f);
+          font-size: 0.92rem;
+          font-weight: 700;
+        }
+
+        .density-toggle {
+          display: inline-flex;
+          gap: 8px;
+          padding: 4px;
+          border-radius: 999px;
+          background: #e9f2fb;
+          border: 1px solid #c3d7ea;
+        }
+
+        .density-toggle button {
+          all: unset;
+          cursor: pointer;
+          padding: 6px 12px;
+          border-radius: 999px;
+          color: #1e5d92;
+          font-size: 0.8rem;
+          font-weight: 800;
+          transition: background-color 0.18s ease, color 0.18s ease;
+        }
+
+        .density-toggle button.active {
+          background: linear-gradient(180deg, #2584d9 0%, #1269b5 100%);
+          color: #fff;
+        }
+
+        .collection-list {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 14px;
+        }
+
+        .collection-list.compact {
+          grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+          gap: 10px;
+        }
+
         .collection-card {
+          border-radius: 16px;
+          border: 1px solid #c7d9eb;
+          background: linear-gradient(180deg, #ffffff 0%, #f2f8ff 100%);
+          box-shadow: 0 8px 18px rgba(19, 44, 76, 0.1);
+          padding: 10px;
           display: flex;
           flex-direction: column;
-          align-items: center;
-          transition: box-shadow 0.2s, border-color 0.2s, transform 0.15s ease-in-out;
-        }
-        .collection-card:hover {
+          gap: 8px;
           cursor: pointer;
-          transform: scale(1.02);
-          transition: transform 0.15s ease-in-out;
+          transition: transform 0.16s ease, box-shadow 0.2s ease, border-color 0.2s ease;
         }
+
+        .collection-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 16px 24px rgba(19, 44, 76, 0.18);
+          border-color: #8db5d9;
+        }
+
         .collection-card img {
-          margin-bottom: 12px;
-          width: 245px;
+          width: 100%;
+          object-fit: contain;
+          border-radius: 12px;
+          background: #e8f1fb;
         }
-        .collection-card .card-name {
-          font-weight: bold;
-          font-size: 1.1rem;
-          text-align: center;
-          margin-top: 4px;
-          word-break: break-word;
-          letter-spacing: 1px;
+
+        .card-name {
+          font-weight: 800;
+          color: #163b63;
+          margin-top: 2px;
         }
-        @media (max-width: 1150px) {
-          .collection-list.has-cards {
-            grid-template-columns: repeat(3, 1fr);
-          }
+
+        .card-meta {
+          display: grid;
+          gap: 4px;
+          color: #3f5875;
+          font-size: 0.82rem;
+          font-weight: 600;
         }
-        @media (max-width: 850px) {
-          .collection-list.has-cards {
-            grid-template-columns: repeat(2, 1fr);
-          }
+
+        :host-context(body.dark-mode) .toolbar,
+        :host-context(body.dark-mode) .state {
+          background: rgba(21, 34, 50, 0.82);
+          border-color: #35516d;
+          color: #c0d4e8;
         }
-        @media (max-width: 550px) {
-        .collection-list {
-          gap: 15px 15px;
-        }  
-        .collection-card {
-            width: 150px;
-          }
-          .collection-card img {
-            width: 100%;
+
+        :host-context(body.dark-mode) .count,
+        :host-context(body.dark-mode) .card-meta {
+          color: #bfd3e8;
+        }
+
+        :host-context(body.dark-mode) .density-toggle {
+          background: #203246;
+          border-color: #39546f;
+        }
+
+        :host-context(body.dark-mode) .density-toggle button {
+          color: #bed6eb;
+        }
+
+        :host-context(body.dark-mode) .collection-card {
+          background: linear-gradient(180deg, #16283b 0%, #102132 100%);
+          border-color: #35516d;
+        }
+
+        :host-context(body.dark-mode) .collection-card:hover {
+          border-color: #4e7395;
+          box-shadow: 0 16px 24px rgba(4, 11, 18, 0.4);
+        }
+
+        :host-context(body.dark-mode) .collection-card img {
+          background: #0b1827;
+        }
+
+        :host-context(body.dark-mode) .card-name {
+          color: #dfeaf7;
+        }
+
+        @media (max-width: 760px) {
+          .toolbar {
+            padding: 10px;
           }
         }
       </style>
-      <div class="collection-outer">
-        <div class="collection-list" id="collection-list"></div>
+      <div class="toolbar">
+        <div class="count" id="collection-count"></div>
+        <div class="density-toggle" role="group" aria-label="Card density">
+          <button id="density-comfy" class="active" type="button">Comfy</button>
+          <button id="density-compact" type="button">Compact</button>
+        </div>
       </div>
+      <div class="collection-list" id="collection-list"></div>
+      <div class="state" id="state"></div>
     `;
+
+    this.shadowRoot.getElementById("density-comfy")?.addEventListener("click", () => {
+      this.density = "comfy";
+      this.render();
+    });
+
+    this.shadowRoot.getElementById("density-compact")?.addEventListener("click", () => {
+      this.density = "compact";
+      this.render();
+    });
   }
 
-  /**
-   * Called when the element is inserted into the DOM.
-   * @returns {void}
-   */
   connectedCallback() {
     this.render();
   }
 
-  /**
-   * Retrieves the user's collection from localStorage using the constant COLLECTION_KEY.
-   * @static
-   * @returns {Array<Object>} The array of card objects in the collection.
-   */
-  static getCollection() {
-    const stored = localStorage.getItem(COLLECTION_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
-      } catch {
-        // Ignore JSON parse errors
-      }
-    }
-    return [];
+  setCards(cards) {
+    this.cards = Array.isArray(cards) ? cards : [];
+    this.loading = false;
+    this.error = "";
+    this.render();
   }
 
-  /**
-   * Gets the user's card collection.
-   * @returns {Array<Object>} The array of card objects in the collection.
-   */
-  getCollection() {
-    return PokemonCollection.getCollection();
+  setLoading(isLoading) {
+    this.loading = Boolean(isLoading);
+    this.render();
   }
 
-  /**
-   * Renders the collection view, displaying all cards or a message if empty.
-   * @returns {void}
-   */
+  setError(message) {
+    this.error = message || "";
+    this.loading = false;
+    this.render();
+  }
+
   render() {
-    const container = this.shadowRoot.getElementById('collection-list');
-    container.innerHTML = '';
-    const collection = this.getCollection();
-    if (collection.length === 0) {
-      container.classList.remove('has-cards');
-      container.innerHTML = '<p class="empty-message">No cards in your collection yet!</p>';
+    const list = this.shadowRoot.getElementById("collection-list");
+    const state = this.shadowRoot.getElementById("state");
+    const count = this.shadowRoot.getElementById("collection-count");
+    const comfyBtn = this.shadowRoot.getElementById("density-comfy");
+    const compactBtn = this.shadowRoot.getElementById("density-compact");
+
+    list.innerHTML = "";
+    state.textContent = "";
+    state.className = "state";
+    count.textContent = `${this.cards.length} card${this.cards.length === 1 ? "" : "s"}`;
+
+    list.classList.toggle("compact", this.density === "compact");
+    comfyBtn.classList.toggle("active", this.density === "comfy");
+    compactBtn.classList.toggle("active", this.density === "compact");
+
+    if (this.loading) {
+      state.textContent = "Loading collection...";
       return;
     }
-    container.classList.add('has-cards');
-    collection.forEach(card => {
-      const cardDiv = document.createElement('div');
-      cardDiv.className = 'collection-card';
-      const img = document.createElement('img');
-      img.src = card.imgUrl;
-      img.alt = card.name;
-      // Fallback to card-back.png if the image fails to load
+
+    if (this.error) {
+      state.textContent = this.error;
+      state.classList.add("error");
+      return;
+    }
+
+    if (!this.cards.length) {
+      state.textContent = "No cards in your collection yet.";
+      return;
+    }
+
+    this.cards.forEach((card) => {
+      const cardDiv = document.createElement("div");
+      cardDiv.className = "collection-card";
+
+      const img = document.createElement("img");
+      img.src = card.imageUrl || FALLBACK_CARD_IMAGE;
+      img.alt = card.name || "Pokemon card";
+      img.loading = "lazy";
       img.onerror = () => {
-        img.onerror = null; // prevent infinite loop if fallback also missing
-        img.src = 'assets/images/card-back.png';
+        img.onerror = null;
+        img.src = FALLBACK_CARD_IMAGE;
       };
 
-      const nameEl = document.createElement('div');
-      nameEl.className = 'card-name';
-      nameEl.textContent = card.name;
-      cardDiv.appendChild(img);
-      cardDiv.appendChild(nameEl);
-      container.appendChild(cardDiv);
+      const nameEl = document.createElement("div");
+      nameEl.className = "card-name";
+      nameEl.textContent = card.name || "Unknown";
 
-      cardDiv.addEventListener('click', () => {
-        this.showCardModal(card.imgUrl);
-      })
+      const metaEl = document.createElement("div");
+      metaEl.className = "card-meta";
+      const setLabel = card.setName ? `Set: ${card.setName}` : "Set: --";
+      const rarityLabel = card.rarity ? `Rarity: ${card.rarity}` : "Rarity: --";
+      const numberLabel = card.number ? `No. ${card.number}` : "No. --";
+      const priceLabel = card.marketPrice ? `Price: $${Number(card.marketPrice).toFixed(2)}` : "Price: unavailable";
+      metaEl.innerHTML = `
+        <span>${setLabel}</span>
+        <span>${numberLabel}</span>
+        <span>${rarityLabel}</span>
+        <span>${priceLabel}</span>
+      `;
+
+      cardDiv.append(img, nameEl, metaEl);
+      cardDiv.addEventListener("click", () => this.showCardModal(card));
+      list.appendChild(cardDiv);
     });
   }
 
-    async showCardModal(imgSrc) {
-      const oldModal = document.getElementById('global-pokemon-modal');
-      if (oldModal) oldModal.remove();
+  async showCardModal(card) {
+    const oldModal = document.getElementById("global-pokemon-modal");
+    if (oldModal) oldModal.remove();
 
-      let fullCard = null;
-      try {
-        const collection = this.getCollection();
-        const cardMatch = collection.find(c => c.imgUrl === imgSrc);
-
-        const { getCardById } = await import('../../api/pokemonAPI.js');
-        
-        if (cardMatch?.id) {
-          fullCard = await getCardById(cardMatch.id);
-        
-        }
-      } catch (err) {
-        console.error('Error fetching card data for modal:', err);
+    let fullCard = null;
+    try {
+      if (card.cardId) {
+        fullCard = await getCardById(card.cardId);
       }
-
-      const name = fullCard?.name || 'Unknown';
-      const price = formatMarketPrice(fullCard);
-      const rarity = fullCard?.rarity || 'Unknown';
-      const set = fullCard?.set?.name || '--';
-      const number = fullCard?.number || '-';
-      const setSize = fullCard?.set?.printedTotal || '-';
-
-      const modal = document.createElement('div');
-      modal.className = 'card-modal';
-      modal.id = 'global-pokemon-modal';
-
-      modal.innerHTML = `
-        <section class="modal-content" role="dialog" aria-modal="true">
-          <figure class="modal-image">
-            <img class="modal-card" src="${imgSrc}" alt="Pokemon Card">
-          </figure>
-          <article class="modal-info">
-            <h2 class="modal-name">${name}</h2>
-            <ul class="modal-details">
-              <li class="modal-set">Set: ${set}</li>
-              <li class="modal-type">Number: ${number}/${setSize}</li>
-              <li class="modal-rarity">Rarity: ${rarity}</li>
-              <li class="modal-hp">Price: ${price}</li>
-            </ul>
-            <button id="deleteCardBtn" style="margin-top: 12px; padding: 8px 12px; background: red; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
-              Remove from Collection
-            </button>
-          </article>
-        </section>
-      `;
-
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.remove();
-      });
-
-      setTimeout(() => {
-        const deleteBtn = modal.querySelector('#deleteCardBtn');
-        deleteBtn.addEventListener('click', () => {
-          const updated = this.getCollection().filter(c => c.imgUrl !== imgSrc);
-          localStorage.setItem('pokemonCollection', JSON.stringify(updated));
-          // Refresh binder view if it exists
-          let collection = JSON.parse(localStorage.getItem(COLLECTION_KEY)) || [];
-          const oldBinder = document.querySelector('pokemon-binder');
-          if (oldBinder) {
-            oldBinder.setPages(collection);
-          }
-          this.render();
-          modal.remove();
-        });
-      }, 0);
-
-      document.body.appendChild(modal);
-      setTimeout(() => { modal.classList.remove('hidden'); }, 10);
+    } catch {
+      fullCard = null;
     }
 
+    const modal = document.createElement("div");
+    modal.className = "card-modal";
+    modal.id = "global-pokemon-modal";
+
+    const price = fullCard ? formatMarketPrice(fullCard) : card.marketPrice ? `$${Number(card.marketPrice).toFixed(2)}` : "Price unavailable";
+    const rarity = fullCard?.rarity || card.rarity || "Unknown";
+    const set = fullCard?.set?.name || card.setName || "--";
+    const number = fullCard?.number || card.number || "-";
+    const setSize = fullCard?.set?.printedTotal || "-";
+
+    modal.innerHTML = `
+      <section class="modal-content" role="dialog" aria-modal="true" aria-label="Card details">
+        <figure class="modal-image">
+          <img class="modal-card" src="${card.imageUrl || FALLBACK_CARD_IMAGE}" alt="Pokemon Card">
+        </figure>
+        <article class="modal-info">
+          <h2 class="modal-name">${card.name || "Unknown"}</h2>
+          <ul class="modal-details">
+            <li>Set: ${set}</li>
+            <li>Number: ${number}/${setSize}</li>
+            <li>Rarity: ${rarity}</li>
+            <li>Price: ${price}</li>
+          </ul>
+          <button id="deleteCardBtn" type="button">Remove from Collection</button>
+        </article>
+      </section>
+    `;
+
+    const removeModal = () => {
+      document.removeEventListener("keydown", onEsc);
+      modal.remove();
+    };
+
+    const onEsc = (event) => {
+      if (event.key === "Escape") removeModal();
+    };
+
+    document.addEventListener("keydown", onEsc);
+
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) removeModal();
+    });
+
+    modal.querySelector("#deleteCardBtn")?.addEventListener("click", () => {
+      this.dispatchEvent(
+        new CustomEvent("remove-card", {
+          detail: { userCardId: card.userCardId },
+          bubbles: true,
+          composed: true,
+        })
+      );
+      removeModal();
+    });
+
+    document.body.appendChild(modal);
+  }
 }
 
-customElements.define('pokemon-collection', PokemonCollection);
+customElements.define("pokemon-collection", PokemonCollection);

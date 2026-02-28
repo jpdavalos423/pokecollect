@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">65% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>8/8</span>
+                <span class='fraction'>13/20</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">50% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>4/4</span>
+                <span class='fraction'>7/14</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">50% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>1/1</span>
+                <span class='fraction'>1/2</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">68.42% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>8/8</span>
+                <span class='fraction'>13/19</span>
             </div>
         
             
@@ -80,15 +80,40 @@
 <a name='L15'></a><a href='#L15'>15</a>
 <a name='L16'></a><a href='#L16'>16</a>
 <a name='L17'></a><a href='#L17'>17</a>
-<a name='L18'></a><a href='#L18'>18</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -97,31 +122,45 @@
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">// toggleMode.js
-// Handles toggling between light and dark mode for the Pokémon binder app
-&nbsp;
-const darkModeToggleBtn = document.getElementById('darkModeToggle');
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const THEME_STORAGE_KEY = "pokemonDarkMode";
+const darkModeToggleBtn = document.getElementById("darkModeToggle");
 const bodyElement = document.body;
+const prefersDarkQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
 &nbsp;
-// On page load: apply saved dark mode preference
-if (localStorage.getItem('pokemonDarkMode') === 'true') {
-  bodyElement.classList.add('dark-mode');
+const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+const hasExplicitTheme = savedTheme === "true" || savedTheme === "false";
+const shouldUseDarkMode = hasExplicitTheme ? savedTheme === "true" : Boolean(prefersDarkQuery?.matches);
+&nbsp;
+bodyElement.classList.toggle("dark-mode", shouldUseDarkMode);
+&nbsp;
+function <span class="fstat-no" title="function not covered" >syncWithSystemTheme(</span>event) {
+<span class="cstat-no" title="statement not covered" >  if (localStorage.getItem(THEME_STORAGE_KEY) !== null) <span class="cstat-no" title="statement not covered" >return;</span></span>
+<span class="cstat-no" title="statement not covered" >  bodyElement.classList.toggle("dark-mode", event.matches);</span>
 }
 &nbsp;
-// Toggle dark mode on button click and save preference
+<span class="missing-if-branch" title="if path not taken" >I</span>if (prefersDarkQuery) {
+<span class="cstat-no" title="statement not covered" >  if (typeof prefersDarkQuery.addEventListener === "function") {</span>
+<span class="cstat-no" title="statement not covered" >    prefersDarkQuery.addEventListener("change", syncWithSystemTheme);</span>
+  } else <span class="cstat-no" title="statement not covered" >if (typeof prefersDarkQuery.addListener === "function") {</span>
+<span class="cstat-no" title="statement not covered" >    prefersDarkQuery.addListener(syncWithSystemTheme);</span>
+  }
+}
+&nbsp;
 if (darkModeToggleBtn) {
-  darkModeToggleBtn.addEventListener('click', () =&gt; {
-    bodyElement.classList.toggle('dark-mode');
-    localStorage.setItem('pokemonDarkMode', bodyElement.classList.contains('dark-mode'));
+  darkModeToggleBtn.addEventListener("click", () =&gt; {
+    bodyElement.classList.toggle("dark-mode");
+    localStorage.setItem(THEME_STORAGE_KEY, String(bodyElement.classList.contains("dark-mode")));
   });
-}</pre></td></tr></table></pre>
+}
+&nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-06-09T05:54:53.561Z
+                at 2026-02-28T19:34:19.924Z
             </div>
         <script src="../prettify.js"></script>
         <script>
