@@ -10,6 +10,7 @@ import {
   getCardsByNameAndNumber,
   getCardsByPage,
   getCardsBySet,
+  searchCards,
 } from "../source/api/pokemonAPI.js";
 
 function jsonResponse(payload, status = 200) {
@@ -70,6 +71,59 @@ describe("source/api/pokemonAPI", () => {
 
     expect(String(global.fetch.mock.calls[0][0])).toContain("name=Charizard");
     expect(String(global.fetch.mock.calls[0][0])).toContain("number=4%2F102");
+  });
+
+  test("searchCards supports advanced filters", async () => {
+    global.fetch.mockResolvedValueOnce(jsonResponse({ data: [] }));
+
+    await searchCards({
+      setId: "sv2",
+      rarityFamily: "tcg_rare",
+      rarity: "Rare",
+      type: "Grass",
+      page: 2,
+      pageSize: 15,
+    });
+
+    const url = String(global.fetch.mock.calls[0][0]);
+    expect(url).toContain("setId=sv2");
+    expect(url).toContain("rarityFamily=tcg_rare");
+    expect(url).toContain("rarity=Rare");
+    expect(url).toContain("type=Grass");
+    expect(url).toContain("page=2");
+    expect(url).toContain("pageSize=15");
+  });
+
+  test("searchCards omits rarity query when not provided", async () => {
+    global.fetch.mockResolvedValueOnce(jsonResponse({ data: [] }));
+
+    await searchCards({
+      type: "Grass",
+      page: 1,
+      pageSize: 20,
+    });
+
+    const url = String(global.fetch.mock.calls[0][0]);
+    expect(url).toContain("type=Grass");
+    expect(url).not.toContain("rarity=");
+  });
+
+  test("searchCards supports family-only rarity filtering", async () => {
+    global.fetch.mockResolvedValueOnce(jsonResponse({ data: [] }));
+
+    await searchCards({
+      rarityFamily: "pocket_diamond",
+      page: 1,
+      pageSize: 20,
+    });
+
+    const url = String(global.fetch.mock.calls[0][0]);
+    expect(url).toContain("rarityFamily=pocket_diamond");
+    expect(url).not.toContain("rarity=");
+  });
+
+  test("searchCards requires at least one filter", async () => {
+    await expect(searchCards({})).rejects.toThrow("At least one search filter is required.");
   });
 
   test("getCardsByPage validates pagination inputs", async () => {

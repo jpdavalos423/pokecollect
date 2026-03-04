@@ -30,6 +30,7 @@ describe("cardCache service", () => {
       set: { name: "Base" },
       number: "17",
       rarity: "Common",
+      types: ["Lightning"],
       images: { small: "https://cdn.example/pika-small.webp" },
       tcgplayer: {
         prices: {
@@ -41,8 +42,9 @@ describe("cardCache service", () => {
 
     const [, params] = mockQuery.mock.calls[0];
     expect(params[0]).toBe("sv2-1");
-    expect(params[5]).toBe("https://cdn.example/pika-small.webp");
-    expect(params[6]).toBe(2.5);
+    expect(params[5]).toEqual(["Lightning"]);
+    expect(params[6]).toBe("https://cdn.example/pika-small.webp");
+    expect(params[7]).toBe(2.5);
   });
 
   test("upsertCardCache falls back to tcgdex pricing and fallback image", async () => {
@@ -64,8 +66,9 @@ describe("cardCache service", () => {
     const [, params] = mockQuery.mock.calls[0];
     expect(params[2]).toBe("Jungle");
     expect(params[3]).toBe("12");
-    expect(params[5]).toBe(DEFAULT_CARD_BACK_IMAGE);
-    expect(params[6]).toBe(3.4);
+    expect(params[5]).toEqual([]);
+    expect(params[6]).toBe(DEFAULT_CARD_BACK_IMAGE);
+    expect(params[7]).toBe(3.4);
   });
 
   test("upsertCardCache stores null market price when no valid price exists", async () => {
@@ -79,8 +82,9 @@ describe("cardCache service", () => {
     });
 
     const [, params] = mockQuery.mock.calls[0];
-    expect(params[5]).toBe("https://cdn.example/bulba.webp");
-    expect(params[6]).toBeNull();
+    expect(params[5]).toEqual([]);
+    expect(params[6]).toBe("https://cdn.example/bulba.webp");
+    expect(params[7]).toBeNull();
   });
 
   test("getCachedCardById returns row when found and null when missing", async () => {

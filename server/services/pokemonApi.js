@@ -5,6 +5,51 @@ const cardCache = new Map();
 const setsCache = new Map();
 const setCardsCache = new Map();
 const FILE_EXTENSION_RE = /\.(?:png|jpe?g|webp|gif|svg)(?:\?.*)?$/i;
+const RARITY_FAMILY_MAP = {
+  tcg_common: ["Common", "Uncommon"],
+  tcg_rare: [
+    "Rare",
+    "Rare Holo",
+    "Holo Rare",
+    "Rare Holo LV.X",
+    "Radiant Rare",
+    "Amazing Rare",
+    "Black White Rare",
+    "ACE SPEC Rare",
+    "PROMO",
+    "Promo",
+  ],
+  tcg_ultra: [
+    "Ultra Rare",
+    "Secret Rare",
+    "Rare Ultra",
+    "Rare Secret",
+    "Hyper rare",
+    "Mega Hyper Rare",
+    "Full Art Trainer",
+    "Special illustration rare",
+    "Illustration rare",
+    "Classic Collection",
+    "LEGEND",
+    "Rare PRIME",
+    "Double rare",
+    "Holo Rare V",
+    "Holo Rare VMAX",
+    "Holo Rare VSTAR",
+  ],
+  tcg_misc: ["None"],
+  pocket_diamond: ["One Diamond", "Two Diamond", "Three Diamond", "Four Diamond"],
+  pocket_star: ["One Star", "Two Star", "Three Star"],
+  pocket_shiny: [
+    "One Shiny",
+    "Two Shiny",
+    "Shiny rare",
+    "Shiny rare V",
+    "Shiny rare VMAX",
+    "Shiny Ultra Rare",
+  ],
+  pocket_special: ["Crown"],
+};
 
 function getCacheEntry(store, key) {
   const entry = store.get(key);
@@ -23,6 +68,17 @@ function setCacheEntry(store, key, value) {
   });
 }
 
+function normalizeString(value) {
+  if (typeof value !== "string") return "";
+  return value.trim();
+}
+
+function normalizePageNumber(value, defaultValue) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) return defaultValue;
+  return Math.floor(parsed);
+}
+
 async function tcgdexGet(pathname, params = {}) {
   const url = new URL(`${env.tcgdexApiBaseUrl}${pathname}`);
   Object.entries(params).forEach(([key, value]) => {
@@ -31,11 +87,19 @@ async function tcgdexGet(pathname, params = {}) {
     }
   });
 
-  const response = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  } catch (err) {
+    const error = new Error("TCGdex API unavailable");
+    error.status = 503;
+    error.cause = err;
+    throw error;
+  }
 
   if (!response.ok) {
     const body = await response.text();
@@ -100,35 +164,218 @@ export function normalizeCardNumber(number) {
   return (localId || "").trim();
 }
 
-export async function searchCards({ name, number, page = 1, pageSize = 20 }) {
-  const safeName = (name || "").trim();
-  if (!safeName) {
-    throw new Error("Name is required");
+function includesCaseInsensitive(source, query) {
+  return String(source || "").toLowerCase().includes(String(query || "").toLowerCase());
+}
+
+function equalsCaseInsensitive(source, query) {
+  return String(source || "").toLowerCase() === String(query || "").toLowerCase();
+}
+
+export function getRarityFamilyValues(familyKey) {
+  const key = normalizeString(familyKey);
+  if (!key) return [];
+  const values = RARITY_FAMILY_MAP[key];
+  return Array.isArray(values) ? values : [];
+}
+
+function getCardTypes(card) {
+  if (Array.isArray(card?.types)) {
+    return card.types.map((type) => normalizeString(type)).filter(Boolean);
+  }
+  const singleType = normalizeString(card?.type);
+  return singleType ? [singleType] : [];
+}
+
+function matchesCardFilters(card, filters) {
+  if (!card || typeof card !== "object") return false;
+
+  if (filters.name && !includesCaseInsensitive(card.name, filters.name)) {
+    return false;
   }
 
-  const key = JSON.stringify({ name: safeName, number, page, pageSize });
+  if (filters.number) {
+    const cardNumber = normalizeCardNumber(card.localId || card.number || "");
+    if (cardNumber !== filters.number) {
+      return false;
+    }
+  }
+
+  if (filters.rarity) {
+    const cardRarity = normalizeString(card.rarity);
+    if (!equalsCaseInsensitive(cardRarity, filters.rarity)) {
+      return false;
+    }
+  } else if (filters.rarityFamily) {
+    const cardRarity = normalizeString(card.rarity);
+    const familyValues = getRarityFamilyValues(filters.rarityFamily);
+    if (!familyValues.length) return false;
+    if (!familyValues.some((value) => equalsCaseInsensitive(cardRarity, value))) {
+      return false;
+    }
+  }
+
+  if (filters.type) {
+    const cardTypes = getCardTypes(card);
+    if (!cardTypes.some((cardType) => equalsCaseInsensitive(cardType, filters.type))) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function filterCardsByCriteria(cards, filters, limit = Number.POSITIVE_INFINITY) {
+  const matches = [];
+
+  for (const card of cards) {
+    let candidate = card;
+    const missingRarity = (filters.rarity || filters.rarityFamily) && !normalizeString(card?.rarity);
+    const missingType = filters.type && getCardTypes(card).length === 0;
+
+    if ((missingRarity || missingType) && normalizeString(card?.id)) {
+      try {
+        const detailed = await fetchCardById(card.id);
+        if (detailed?.data) {
+          candidate = detailed.data;
+        }
+      } catch {
+        // Keep using partial card data if detail lookup fails.
+      }
+    }
+
+    if (matchesCardFilters(candidate, filters)) {
+      matches.push(candidate);
+      if (matches.length >= limit) {
+        break;
+      }
+    }
+  }
+
+  return matches;
+}
+
+function paginate(data, page, pageSize) {
+  const offset = (page - 1) * pageSize;
+  return data.slice(offset, offset + pageSize);
+}
+
+function hasAtLeastOneSearchFilter(filters) {
+  return Boolean(
+    filters.name ||
+      filters.number ||
+      filters.setId ||
+      filters.rarityFamily ||
+      filters.rarity ||
+      filters.type
+  );
+}
+
+export async function searchCards({
+  name,
+  number,
+  setId,
+  rarityFamily,
+  rarity,
+  type,
+  page = 1,
+  pageSize = 20,
+}) {
+  const filters = {
+    name: normalizeString(name),
+    number: normalizeCardNumber(number),
+    setId: normalizeString(setId),
+    rarityFamily: normalizeString(rarityFamily),
+    rarity: normalizeString(rarity),
+    type: normalizeString(type),
+  };
+
+  const safePage = normalizePageNumber(page, 1);
+  const safePageSize = Math.min(100, normalizePageNumber(pageSize, 20));
+
+  if (!hasAtLeastOneSearchFilter(filters)) {
+    throw new Error("At least one search filter is required");
+  }
+
+  const key = JSON.stringify({ ...filters, page: safePage, pageSize: safePageSize });
   const cached = getCacheEntry(searchCache, key);
   if (cached) return cached;
 
-  const params = {
-    name: safeName,
-    "pagination:page": page,
-    "pagination:itemsPerPage": pageSize,
-  };
+  let data = [];
+  let totalCount = 0;
 
-  const normalizedNumber = normalizeCardNumber(number);
-  if (normalizedNumber) {
-    params.localId = `eq:${normalizedNumber}`;
+  if (filters.setId) {
+    const setPayload = await fetchCardsBySet(filters.setId);
+    const filtered = (Array.isArray(setPayload.data) ? setPayload.data : []).filter((card) =>
+      matchesCardFilters(card, filters)
+    );
+    totalCount = filtered.length;
+    data = paginate(filtered, safePage, safePageSize);
+  } else {
+    const broadRarityTypeSearch =
+      !filters.name && !filters.number && (filters.rarityFamily || filters.rarity || filters.type);
+
+    if (broadRarityTypeSearch) {
+      const maxPagesToScan = 6;
+      const targetCount = safePage * safePageSize;
+      const filteredAccumulator = [];
+
+      for (let currentPage = 1; currentPage <= maxPagesToScan; currentPage += 1) {
+        let cards = [];
+        try {
+          const params = {
+            "pagination:page": currentPage,
+            "pagination:itemsPerPage": safePageSize,
+          };
+          const raw = await tcgdexGet("/cards", params);
+          cards = Array.isArray(raw) ? raw.map(withImageUrls) : [];
+        } catch (err) {
+          if (filteredAccumulator.length > 0) {
+            break;
+          }
+          throw err;
+        }
+
+        const remainingTarget = Math.max(1, targetCount - filteredAccumulator.length);
+        const filteredPage = await filterCardsByCriteria(cards, filters, remainingTarget);
+        filteredAccumulator.push(...filteredPage);
+
+        if (cards.length === 0 || filteredAccumulator.length >= targetCount) {
+          break;
+        }
+      }
+
+      totalCount = filteredAccumulator.length;
+      data = paginate(filteredAccumulator, safePage, safePageSize);
+    } else {
+      const params = {
+        "pagination:page": safePage,
+        "pagination:itemsPerPage": safePageSize,
+      };
+
+      if (filters.name) {
+        params.name = filters.name;
+      }
+
+      if (filters.number) {
+        params.localId = `eq:${filters.number}`;
+      }
+
+      const raw = await tcgdexGet("/cards", params);
+      const cards = Array.isArray(raw) ? raw.map(withImageUrls) : [];
+      const filtered = await filterCardsByCriteria(cards, filters);
+
+      data = filtered;
+      totalCount = filtered.length;
+    }
   }
 
-  const raw = await tcgdexGet("/cards", params);
-  const data = Array.isArray(raw) ? raw.map(withImageUrls) : [];
   const payload = {
     data,
-    page,
-    pageSize,
+    page: safePage,
+    pageSize: safePageSize,
     count: data.length,
-    totalCount: data.length,
+    totalCount,
   };
 
   setCacheEntry(searchCache, key, payload);

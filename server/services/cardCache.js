@@ -49,6 +49,11 @@ function mapCardToCache(card) {
     card.imageURL ||
     card.imageUrl ||
     DEFAULT_CARD_BACK_IMAGE;
+  const types = Array.isArray(card?.types)
+    ? card.types.map((value) => `${value || ""}`.trim()).filter(Boolean)
+    : card?.type
+      ? [`${card.type}`.trim()].filter(Boolean)
+      : [];
 
   return {
     cardId: card.id,
@@ -56,6 +61,7 @@ function mapCardToCache(card) {
     setName: card.set?.name || card.setName || null,
     number: card.number || card.localId || null,
     rarity: card.rarity || null,
+    types,
     imageSmallUrl: imageSmall,
     marketPrice: parseMarketPrice(card),
   };
@@ -71,16 +77,18 @@ export async function upsertCardCache(card) {
         set_name,
         number,
         rarity,
+        types,
         image_small_url,
         market_price,
         updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
       ON CONFLICT (card_id)
       DO UPDATE SET
         name = EXCLUDED.name,
         set_name = EXCLUDED.set_name,
         number = EXCLUDED.number,
         rarity = EXCLUDED.rarity,
+        types = EXCLUDED.types,
         image_small_url = EXCLUDED.image_small_url,
         market_price = EXCLUDED.market_price,
         updated_at = NOW()
@@ -91,6 +99,7 @@ export async function upsertCardCache(card) {
       mapped.setName,
       mapped.number,
       mapped.rarity,
+      mapped.types,
       mapped.imageSmallUrl,
       mapped.marketPrice,
     ]
@@ -100,7 +109,7 @@ export async function upsertCardCache(card) {
 export async function getCachedCardById(cardId) {
   const result = await pool.query(
     `
-      SELECT card_id, name, set_name, number, rarity, image_small_url, market_price, updated_at
+      SELECT card_id, name, set_name, number, rarity, types, image_small_url, market_price, updated_at
       FROM cards_cache
       WHERE card_id = $1
     `,

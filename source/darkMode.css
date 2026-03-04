@@ -44,16 +44,39 @@ body.dark-mode .auth-panel input,
 body.dark-mode .collection-filters input,
 body.dark-mode .collection-filters select,
 body.dark-mode .jump-group input,
-body.dark-mode .modal-info input {
+body.dark-mode .modal-info input,
+body.dark-mode .modal-info select {
   background: #0d1b2a;
   border-color: #35516d;
   color: #eef5ff;
+}
+
+body.dark-mode .modal-info select:disabled {
+  background: #122336;
+  color: #8aa6c1;
+  border-color: #2c455e;
 }
 
 body.dark-mode .auth-status,
 body.dark-mode .modal-details,
 body.dark-mode .search-result-card .card-name {
   color: #bfd3e8;
+}
+
+body.dark-mode .modal-status {
+  color: #bcd4ea;
+}
+
+body.dark-mode .modal-status[data-state="loading"] {
+  color: #90cbff;
+}
+
+body.dark-mode .modal-status[data-state="error"] {
+  color: #ff8e8e;
+}
+
+body.dark-mode .modal-status[data-state="success"] {
+  color: #7ce8a9;
 }
 
 body.dark-mode .auth-panel-title {
@@ -104,6 +127,24 @@ body.dark-mode .search-result-card {
   background: #132436;
 }
 
+body.dark-mode .search-result-card.selected,
+body.dark-mode .card.selected {
+  border-color: #7cc5ff;
+  background: #18324b;
+  box-shadow:
+    0 0 0 2px rgba(124, 197, 255, 0.55),
+    0 10px 22px rgba(5, 14, 24, 0.45);
+}
+
 body.dark-mode .search-result-img {
   background: #091624;
+}
+
+body.dark-mode .search-result-meta,
+body.dark-mode .modal-selected-summary {
+  color: #a7c3dc;
+}
+
+body.dark-mode .modal-add-card-actions {
+  border-top-color: #365069;
 }
